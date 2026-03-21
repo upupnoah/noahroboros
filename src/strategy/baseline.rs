@@ -45,9 +45,8 @@ const BB_PERIOD: usize = 20;
 const BB_STD_MULT: f64 = 2.0;
 const BB_SQUEEZE_LOOKBACK: usize = 120;
 
-// ATR trailing stop
+// ATR (kept for potential future use, but trailing stop removed)
 const ATR_PERIOD: usize = 14;
-const ATR_STOP_MULT: f64 = 5.5;
 
 // Voting
 const VOTE_THRESHOLD: usize = 4;
@@ -75,12 +74,7 @@ pub struct BaselineStrategy {
     bb_prices: VecDeque<f64>,
     bb_widths: VecDeque<f64>,
 
-    // ATR
-    atr_values: VecDeque<f64>,
-    prev_candle: Option<(f64, f64, f64)>, // (high, low, close)
-
-    // Trailing stop state
-    trailing_stop: Option<f64>,
+    // Position tracking (no trailing stop — RSI exits only)
     position: i8, // 0=flat, 1=long, -1=short
 
     count: usize,
@@ -103,29 +97,9 @@ impl BaselineStrategy {
             bb_prices: VecDeque::with_capacity(BB_PERIOD + 1),
             bb_widths: VecDeque::with_capacity(BB_SQUEEZE_LOOKBACK + 1),
 
-            atr_values: VecDeque::with_capacity(ATR_PERIOD + 1),
-            prev_candle: None,
-
-            trailing_stop: None,
             position: 0,
 
             count: 0,
-        }
-    }
-
-    fn compute_atr(&self, high: f64, low: f64, _close: f64) -> f64 {
-        if let Some((_, _, prev_close)) = self.prev_candle {
-            let tr = (high - low)
-                .max((high - prev_close).abs())
-                .max((low - prev_close).abs());
-            if self.atr_values.len() >= ATR_PERIOD - 1 {
-                let sum: f64 = self.atr_values.iter().sum::<f64>() + tr;
-                sum / ATR_PERIOD as f64
-            } else {
-                tr
-            }
-        } else {
-            high - low
         }
     }
 
@@ -160,8 +134,6 @@ impl Strategy for BaselineStrategy {
 
     fn on_candle(&mut self, candle: &Candle) -> Signal {
         let close = candle.close;
-        let high = candle.high;
-        let low = candle.low;
 
         // Update ring buffers
         self.closes.push_back(close);
@@ -190,14 +162,6 @@ impl Strategy for BaselineStrategy {
             self.bb_widths.pop_front();
         }
 
-        // ATR
-        let atr = self.compute_atr(high, low, close);
-        self.atr_values.push_back(atr);
-        if self.atr_values.len() > ATR_PERIOD {
-            self.atr_values.pop_front();
-        }
-        self.prev_candle = Some((high, low, close));
-
         self.count += 1;
 
         if self.count <= WARMUP_BARS {
@@ -206,42 +170,14 @@ impl Strategy for BaselineStrategy {
 
         // --- Exit checks first (before voting) ---
 
-        // RSI exit
+        // RSI exit (sole exit mechanism — trailing stop removed)
         if self.position == 1 && rsi_val >= RSI_EXIT_LONG {
             self.position = 0;
-            self.trailing_stop = None;
             return Signal::Flat;
         }
         if self.position == -1 && rsi_val <= RSI_EXIT_SHORT {
             self.position = 0;
-            self.trailing_stop = None;
             return Signal::Flat;
-        }
-
-        // ATR trailing stop
-        if let Some(stop) = self.trailing_stop {
-            if self.position == 1 && close <= stop {
-                self.position = 0;
-                self.trailing_stop = None;
-                return Signal::Flat;
-            }
-            if self.position == -1 && close >= stop {
-                self.position = 0;
-                self.trailing_stop = None;
-                return Signal::Flat;
-            }
-            // Update trailing stop
-            if self.position == 1 {
-                let new_stop = close - atr * ATR_STOP_MULT;
-                if new_stop > stop {
-                    self.trailing_stop = Some(new_stop);
-                }
-            } else if self.position == -1 {
-                let new_stop = close + atr * ATR_STOP_MULT;
-                if new_stop < stop {
-                    self.trailing_stop = Some(new_stop);
-                }
-            }
         }
 
         // If already in a position, hold
@@ -297,12 +233,10 @@ impl Strategy for BaselineStrategy {
         // Vote (now 5 signals, threshold still 4 = stricter filter)
         if bullish >= VOTE_THRESHOLD {
             self.position = 1;
-            self.trailing_stop = Some(close - atr * ATR_STOP_MULT);
             return Signal::Long;
         }
         if bearish >= VOTE_THRESHOLD {
             self.position = -1;
-            self.trailing_stop = Some(close + atr * ATR_STOP_MULT);
             return Signal::Short;
         }
 
