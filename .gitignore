@@ -18,3 +18,10 @@ Cargo.lock
 .env.development.local
 .env.test.local
 .env.production.local
+
+# autoresearch
+data/**/*.csv
+data/**/*.parquet
+experiments/results.tsv
+experiments/agent_*.log
+run.log
