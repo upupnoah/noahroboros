@@ -72,6 +72,7 @@ pub struct BaselineStrategy {
     ema_slow: ExponentialMovingAverage,
 
     rsi: RelativeStrengthIndex,
+    rsi_closes: VecDeque<f64>,
 
     macd_fast_ema: ExponentialMovingAverage,
     macd_slow_ema: ExponentialMovingAverage,
@@ -97,6 +98,7 @@ impl BaselineStrategy {
             ema_slow: ExponentialMovingAverage::new(EMA_SLOW_PERIOD).unwrap(),
 
             rsi: RelativeStrengthIndex::new(RSI_PERIOD).unwrap(),
+            rsi_closes: VecDeque::with_capacity(RSI_PERIOD + 2),
 
             macd_fast_ema: ExponentialMovingAverage::new(MACD_FAST).unwrap(),
             macd_slow_ema: ExponentialMovingAverage::new(MACD_SLOW).unwrap(),
@@ -110,6 +112,25 @@ impl BaselineStrategy {
 
             count: 0,
         }
+    }
+
+    fn calc_sma_rsi(&self) -> f64 {
+        let n = self.rsi_closes.len();
+        if n < RSI_PERIOD + 1 {
+            return 50.0;
+        }
+        let slice: Vec<f64> = self.rsi_closes.iter().copied().collect();
+        let start = n - RSI_PERIOD - 1;
+        let mut sum_gain = 0.0;
+        let mut sum_loss = 0.0;
+        for i in (start + 1)..n {
+            let d = slice[i] - slice[i - 1];
+            if d > 0.0 { sum_gain += d; } else { sum_loss -= d; }
+        }
+        let avg_gain = sum_gain / RSI_PERIOD as f64;
+        let avg_loss = sum_loss / RSI_PERIOD as f64;
+        if avg_loss < 1e-10 { return 100.0; }
+        100.0 - 100.0 / (1.0 + avg_gain / avg_loss)
     }
 
     fn calc_atr(&self) -> f64 {
@@ -224,7 +245,12 @@ impl Strategy for BaselineStrategy {
 
         let ema_fast_val = self.ema_fast.next(close);
         let ema_slow_val = self.ema_slow.next(close);
-        let rsi_val = self.rsi.next(close);
+        let _rsi_wilder = self.rsi.next(close);
+        self.rsi_closes.push_back(close);
+        if self.rsi_closes.len() > RSI_PERIOD + 2 {
+            self.rsi_closes.pop_front();
+        }
+        let rsi_val = self.calc_sma_rsi();
 
         let macd_fast_val = self.macd_fast_ema.next(close);
         let macd_slow_val = self.macd_slow_ema.next(close);
