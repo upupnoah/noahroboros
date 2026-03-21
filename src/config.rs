@@ -14,6 +14,7 @@ pub struct DownloadConfig {
     pub symbols: Vec<String>,
     pub interval: String,
     pub months: u32,
+    pub market: String,
 }
 
 pub struct ScoringConfig {
@@ -66,6 +67,7 @@ impl Config {
                     .collect(),
                 interval: env_or("DOWNLOAD_INTERVAL", "1h"),
                 months: env_parse("DOWNLOAD_MONTHS", 9),
+                market: env_or("DOWNLOAD_MARKET", "spot"),
             },
         }
     }

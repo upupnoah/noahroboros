@@ -4,7 +4,7 @@ use clap::{Parser, Subcommand};
 
 use noahroboros::backtest::BacktestEngine;
 use noahroboros::config::Config;
-use noahroboros::market::download::Downloader;
+use noahroboros::market::download::{Downloader, Market};
 use noahroboros::market::CsvLoader;
 use noahroboros::strategy::baseline::BaselineStrategy;
 
@@ -26,6 +26,10 @@ enum Commands {
         /// Candle interval: 1m, 5m, 15m, 1h, 4h, 1d (overrides DOWNLOAD_INTERVAL env)
         #[arg(short, long)]
         interval: Option<String>,
+
+        /// Market type: spot or futures (overrides DOWNLOAD_MARKET env)
+        #[arg(long)]
+        market: Option<String>,
 
         /// How many months of history to fetch (overrides DOWNLOAD_MONTHS env).
         /// Ignored if --start is provided.
@@ -66,6 +70,7 @@ fn main() -> Result<()> {
         Commands::Download {
             symbols,
             interval,
+            market,
             months,
             start,
             end,
@@ -73,6 +78,8 @@ fn main() -> Result<()> {
         } => {
             let symbols = symbols.unwrap_or(cfg.download.symbols);
             let interval = interval.unwrap_or(cfg.download.interval);
+            let market_str = market.unwrap_or(cfg.download.market);
+            let market = Market::from_str(&market_str)?;
             let out_dir = output.unwrap_or(cfg.data_dir);
 
             let end_ms = match end {
@@ -91,9 +98,9 @@ fn main() -> Result<()> {
             let start_str = start.as_deref().unwrap_or("(auto)");
             let end_str = end.as_deref().unwrap_or("now");
 
-            let downloader = Downloader::new(&cfg.binance.base_url);
+            let downloader = Downloader::new(market);
 
-            println!("Downloading {interval} candles: {start_str} -> {end_str}");
+            println!("Downloading {interval} {market} candles: {start_str} -> {end_str}");
             println!("Symbols: {}", symbols.join(", "));
             println!("Output:  {out_dir}/{interval}/");
             println!();
