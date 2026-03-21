@@ -49,7 +49,7 @@ const BB_SQUEEZE_LOOKBACK: usize = 120;
 const ATR_PERIOD: usize = 14;
 
 // Voting
-const VOTE_THRESHOLD: usize = 4;
+const VOTE_THRESHOLD: usize = 3;
 
 // Warmup: needs max lookback across all indicators
 const WARMUP_BARS: usize = 120;
