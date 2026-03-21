@@ -4,6 +4,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
+export PATH="$HOME/.local/bin:$PATH"
+AGENT_CMD="${AGENT_CMD:-agent}"
+
 TAG="${TAG:-$(date +%b%d | tr '[:upper:]' '[:lower:]')}"
 BRANCH="autoresearch/$TAG"
 EXPERIMENTS=0
@@ -56,8 +59,8 @@ check_prerequisites() {
         missing=true
     fi
 
-    if ! command -v agent &>/dev/null; then
-        echo "ERROR: Cursor CLI (agent) not found."
+    if ! command -v "$AGENT_CMD" &>/dev/null; then
+        echo "ERROR: Cursor CLI ($AGENT_CMD) not found."
         echo "Install: curl https://cursor.com/install -fsS | bash"
         missing=true
     fi
@@ -124,7 +127,7 @@ run_interactive() {
     echo "The agent will read AGENTS.md and begin the experiment loop."
     echo ""
 
-    local cmd="agent"
+    local cmd="$AGENT_CMD --trust --yolo --sandbox disabled"
     [[ -n "$MODEL" ]] && cmd="$cmd --model $MODEL"
     $cmd "Read AGENTS.md and let's kick off a new autoresearch experiment run. Do the setup first."
 }
@@ -147,15 +150,26 @@ run_noninteractive() {
     for i in $(seq 1 "$n"); do
         echo "--- Experiment $i/$n ($(date '+%H:%M:%S')) ---"
 
-        if timeout "$TIMEOUT" agent -p "$prompt" $model_flag --output-format text > "experiments/agent_${i}.log" 2>&1; then
-            echo "Experiment $i completed."
-        else
-            local exit_code=$?
-            if [[ $exit_code -eq 124 ]]; then
-                echo "Experiment $i timed out after ${TIMEOUT}s. Moving on."
-            else
-                echo "Experiment $i failed with exit code $exit_code. Moving on."
+        $AGENT_CMD -p "$prompt" $model_flag --output-format text --trust --yolo --sandbox disabled > "experiments/agent_${i}.log" 2>&1 &
+        local agent_pid=$!
+
+        local waited=0
+        local timed_out=false
+        while kill -0 "$agent_pid" 2>/dev/null; do
+            if [[ $waited -ge $TIMEOUT ]]; then
+                kill "$agent_pid" 2>/dev/null
+                wait "$agent_pid" 2>/dev/null
+                echo "Experiment $i timed out after ${TIMEOUT}s."
+                timed_out=true
+                break
             fi
+            sleep 5
+            waited=$((waited + 5))
+        done
+
+        if [[ "$timed_out" = false ]]; then
+            wait "$agent_pid" 2>/dev/null
+            echo "Experiment $i completed."
         fi
 
         if [[ -f experiments/results.tsv ]]; then
@@ -180,7 +194,7 @@ run_cloud() {
     echo "Pushing to Cursor Cloud Agent..."
     echo ""
 
-    local cmd="agent -c"
+    local cmd="$AGENT_CMD -c --trust --yolo --sandbox disabled"
     [[ -n "$MODEL" ]] && cmd="$cmd --model $MODEL"
     $cmd "Read AGENTS.md for full instructions. You are on branch $BRANCH. Do the setup, then run the experiment loop FOREVER. Do not stop. Do not ask for confirmation. Be autonomous."
 
