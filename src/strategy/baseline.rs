@@ -26,7 +26,7 @@ const RSI_PERIOD: usize = 30;
 const RSI_EXIT_LONG: f64 = 80.0;
 const RSI_EXIT_SHORT: f64 = 20.0;
 
-const VOTE_THRESHOLD: usize = 3;
+const VOTE_THRESHOLD: usize = 2;
 
 const WARMUP_BARS: usize = 120;
 
@@ -290,34 +290,9 @@ impl Strategy for BaselineStrategy {
         let mut bull_votes = 0_usize;
         let mut bear_votes = 0_usize;
 
-        // 1. 12h Momentum
-        if self.closes.len() > MOM_LONG_BARS {
-            let past = self.closes[self.closes.len() - 1 - MOM_LONG_BARS];
-            let ret = (close - past) / past;
-            if ret > dyn_threshold {
-                bull_votes += 1;
-            } else if ret < -dyn_threshold {
-                bear_votes += 1;
-            }
-        }
+        // Momentum signals disabled — simplified to EMA + RSI only
 
-        // 2. 6h V-Short Momentum
-        if self.closes.len() > MOM_SHORT_BARS {
-            let past = self.closes[self.closes.len() - 1 - MOM_SHORT_BARS];
-            let ret = (close - past) / past;
-            let vshort_thresh = if USE_DYNAMIC_THRESHOLD {
-                dyn_threshold * VSHORT_THRESHOLD_MULT
-            } else {
-                0.0
-            };
-            if ret > vshort_thresh {
-                bull_votes += 1;
-            } else if ret < -vshort_thresh {
-                bear_votes += 1;
-            }
-        }
-
-        // 3. EMA Crossover
+        // 1. EMA Crossover
         if ema_fast_val > ema_slow_val {
             bull_votes += 1;
         } else if ema_fast_val < ema_slow_val {
