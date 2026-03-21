@@ -273,6 +273,19 @@ impl Strategy for BaselineStrategy {
                 }
             }
 
+            // Profit target exit
+            const PROFIT_TARGET: f64 = 0.04;
+            if self.position == 1 && close >= self.entry_price * (1.0 + PROFIT_TARGET) {
+                self.position = 0;
+                self.bars_since_exit = 0;
+                return Signal::Flat;
+            }
+            if self.position == -1 && close <= self.entry_price * (1.0 - PROFIT_TARGET) {
+                self.position = 0;
+                self.bars_since_exit = 0;
+                return Signal::Flat;
+            }
+
             // RSI mean-reversion exit (always active)
             if self.position == 1 && rsi_val >= RSI_EXIT_LONG {
                 self.position = 0;
