@@ -108,8 +108,13 @@ PROMPT_TEMPLATE='Read AGENTS.md for full context. You are in the middle of an au
 
 Read experiments/results.tsv to see past results. Read src/strategy/baseline.rs for the current strategy.
 
+IMPORTANT: Parameter tuning has plateaued at score 2.033. Do NOT just tweak numbers.
+Try STRUCTURAL changes: new signal types, different exit logic, volatility adaptation,
+weighted scoring, regime detection, cooldown periods, ATR-normalized momentum, etc.
+Read the "Structural changes" section in AGENTS.md for ideas.
+
 Run the NEXT experiment:
-1. Review what has been tried. Pick ONE new idea to test.
+1. Review what has been tried. Pick ONE STRUCTURAL change to test (not just parameter tweaks).
 2. Edit src/strategy/baseline.rs with the change.
 3. git add -A && git commit -m "experiment: <description>"
 4. cargo build --release 2>&1 | tail -n 20

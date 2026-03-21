@@ -241,11 +241,21 @@ what the data tells you.
 - Remove any feature that "never triggers"
 - Simplify position sizing to fixed fraction
 
-**Structural changes:**
-- Signal voting threshold (require N of M signals to agree)
-- Trailing stop vs fixed stop
-- Asymmetric entry/exit conditions
-- Per-asset parameter tuning vs universal parameters
+**Structural changes (HIGH PRIORITY — parameter tuning has plateaued):**
+- Completely replace the signal logic (e.g. pure mean-reversion instead of momentum)
+- Adaptive position sizing based on realized volatility (inverse vol sizing)
+- Dynamic threshold: adjust entry sensitivity by recent vol regime
+- Add a cooldown period between trades to reduce churn and fees
+- Time-weighted signals: give more weight to recent bars
+- Asymmetric long/short parameters (crypto trends up differently than down)
+- Use candle patterns (e.g. engulfing, doji) as additional signals
+- Replace EMA crossover with KAMA (Kaufman Adaptive Moving Average)
+- Hull Moving Average instead of EMA for less lag
+- Use ATR-normalized momentum (return / ATR) instead of raw return
+- Require momentum to exceed a dynamic threshold (not just > 0)
+- Add a trend strength filter: only trade when ADX > threshold
+- Regime detection: bull/bear/sideways → different strategy per regime
+- Combine signals with weighted scoring instead of equal voting
 
 ## NEVER STOP
 
