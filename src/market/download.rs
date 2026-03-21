@@ -21,17 +21,10 @@ impl Market {
         }
     }
 
-    fn base_url(&self) -> &str {
+    fn kline_url(&self) -> &str {
         match self {
-            Market::Spot => "https://api.binance.com",
-            Market::Futures => "https://fapi.binance.com",
-        }
-    }
-
-    fn kline_path(&self) -> &str {
-        match self {
-            Market::Spot => "/api/v3/klines",
-            Market::Futures => "/fapi/v1/klines",
+            Market::Spot => "https://api.binance.com/api/v3/klines",
+            Market::Futures => "https://fapi.binance.com/fapi/v1/klines",
         }
     }
 }
@@ -49,21 +42,18 @@ impl fmt::Display for Market {
 struct RawKline(Vec<serde_json::Value>);
 
 pub struct Downloader {
-    base_url: String,
-    kline_path: String,
+    kline_url: String,
     client: reqwest::blocking::Client,
 }
 
 impl Downloader {
     pub fn new(market: Market) -> Self {
         Self {
-            base_url: market.base_url().to_string(),
-            kline_path: market.kline_path().to_string(),
+            kline_url: market.kline_url().to_string(),
             client: reqwest::blocking::Client::new(),
         }
     }
 
-    /// Download historical klines for a symbol and write to CSV.
     pub fn download(
         &self,
         symbol: &str,
@@ -90,8 +80,8 @@ impl Downloader {
             }
 
             let url = format!(
-                "{}{}?symbol={}&interval={}&startTime={}&endTime={}&limit={}",
-                self.base_url, self.kline_path, symbol, interval, current_start, end_ms, KLINE_LIMIT
+                "{}?symbol={}&interval={}&startTime={}&endTime={}&limit={}",
+                self.kline_url, symbol, interval, current_start, end_ms, KLINE_LIMIT
             );
 
             let resp: Vec<RawKline> = self
