@@ -23,8 +23,8 @@ const EMA_FAST_PERIOD: usize = 5;
 const EMA_SLOW_PERIOD: usize = 21;
 
 const RSI_PERIOD: usize = 32;
-const RSI_EXIT_LONG: f64 = 80.0;
-const RSI_EXIT_SHORT: f64 = 20.0;
+const RSI_EXIT_LONG: f64 = 85.0;
+const RSI_EXIT_SHORT: f64 = 15.0;
 
 const VOTE_THRESHOLD: usize = 1;
 
