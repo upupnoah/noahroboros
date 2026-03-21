@@ -97,7 +97,7 @@ build_project() {
 init_results() {
     mkdir -p experiments
     if [[ ! -f experiments/results.tsv ]]; then
-        printf "commit\tcomposite\tsharpe\tmax_dd\tstatus\tdescription\n" > experiments/results.tsv
+        printf "commit\tscore\tsharpe\tmax_dd\tstatus\tdescription\n" > experiments/results.tsv
         echo "Initialized experiments/results.tsv"
     fi
 }
@@ -108,13 +108,15 @@ PROMPT_TEMPLATE='Read AGENTS.md for full context. You are in the middle of an au
 
 Read experiments/results.tsv to see past results. Read src/strategy/baseline.rs for the current strategy.
 
-IMPORTANT: Parameter tuning has plateaued at score 2.033. Do NOT just tweak numbers.
-Try STRUCTURAL changes: new signal types, different exit logic, volatility adaptation,
-weighted scoring, regime detection, cooldown periods, ATR-normalized momentum, etc.
-Read the "Structural changes" section in AGENTS.md for ideas.
+The strategy has 6 TOGGLEABLE Nunchi mechanisms (USE_DYNAMIC_THRESHOLD, USE_MACD,
+USE_BB, USE_ATR_STOP, USE_COOLDOWN, USE_SIGNAL_FLIP). All start disabled.
+Current baseline score: +1.851 with 4 active signals + RSI exit.
+
+PRIORITY: Try enabling toggles ONE AT A TIME first, then parameter tuning, then
+structural changes. Read the Strategy Ideas section in AGENTS.md for prioritized list.
 
 Run the NEXT experiment:
-1. Review what has been tried. Pick ONE STRUCTURAL change to test (not just parameter tweaks).
+1. Review what has been tried. Pick ONE change.
 2. Edit src/strategy/baseline.rs with the change.
 3. git add -A && git commit -m "experiment: <description>"
 4. cargo build --release 2>&1 | tail -n 20

@@ -4,7 +4,7 @@ This is an autonomous research loop for crypto trading strategy optimization.
 An AI agent modifies the strategy code, backtests it, scores the result,
 keeps improvements, and discards regressions. Inspired by
 [karpathy/autoresearch](https://github.com/karpathy/autoresearch) and
-[Nunchi's 103-experiment run](https://x.com/nunchi/status/2034666333741220306).
+[Nunchi's 103-experiment run](https://github.com/Nunchi-trade/auto-researchtrading).
 
 ## Setup
 
@@ -19,11 +19,11 @@ To set up a new experiment run, work with the user to:
    - `src/strategy/baseline.rs` — the starting strategy. This is what you improve.
    - `src/backtest/mod.rs` — the backtest engine. Read-only. Understand its output format.
    - `src/scoring/mod.rs` — the scoring function. Read-only. Understand the composite metric.
-4. **Verify data exists**: Check that `data/` contains subdirectories with `.csv` files
-   (e.g. `data/1m/ETHUSDT.csv`). If not, tell the human to run `cargo run -- download`.
+4. **Verify data exists**: Check that `data/1h/` contains `.csv` files
+   (BTCUSDT.csv, ETHUSDT.csv, SOLUSDT.csv). If not, tell the human to run
+   `cargo run -- download`.
 5. **Build**: `cargo build --release`. Fix any compilation errors before proceeding.
-6. **Establish baseline**: Run the backtest with the unmodified strategy.
-   Use the data directory specified by the human (default `data/1m`):
+6. **Establish baseline**: Run the backtest with the unmodified strategy:
    ```
    cargo run --release -- backtest -d data/1h > run.log 2>&1
    ```
@@ -37,7 +37,6 @@ To set up a new experiment run, work with the user to:
 ```
 AGENTS.md               ← you are here (your instructions)
 .env                    ← infrastructure config (read-only, see .env.example)
-.env.example            ← config template with defaults (read-only)
 Cargo.toml              ← dependencies (read-only)
 run.sh                  ← automation script (read-only)
 src/
@@ -52,11 +51,14 @@ src/
   scoring/
     mod.rs              ← scoring metrics (read-only)
   trading/
-    mod.rs              ← Exchange trait + stubs (read-only, not used in autoresearch)
+    mod.rs              ← Exchange trait + stubs (read-only)
   market/
     mod.rs              ← MarketFeed trait + CSV loader (read-only)
 data/
-  *.csv                 ← historical OHLCV candle data (read-only)
+  1h/                   ← 1-hour OHLCV candle data (read-only)
+    BTCUSDT.csv
+    ETHUSDT.csv
+    SOLUSDT.csv
 experiments/
   results.tsv           ← experiment log (you append to this)
 ```
@@ -66,39 +68,21 @@ exchange URLs) are loaded from `.env` via `src/config.rs`. Strategy parameters (
 periods, thresholds, etc.) live in `src/strategy/baseline.rs` as code constants — these
 are what you optimize. Do NOT modify `.env` or `config.rs`.
 
-## Scope Rules
-
-**What you CAN do:**
-- Modify `src/strategy/baseline.rs` — this is the only file you edit. Everything about
-  the strategy is fair game: signal logic, indicators, parameters, entry/exit rules,
-  position sizing, risk management, filters.
-- Create NEW files under `src/strategy/` if the strategy grows complex enough to warrant
-  splitting (e.g. `src/strategy/signals.rs`, `src/strategy/filters.rs`). If you do,
-  update `src/strategy/mod.rs` to include them.
-- Modify `src/strategy/mod.rs` ONLY to add `mod` declarations for new strategy files.
-
-**What you CANNOT do:**
-- Modify any file outside `src/strategy/`.
-- Modify `Cargo.toml` or add dependencies.
-- Modify the backtest engine, scoring function, market data loader, or exchange connectors.
-- Modify `AGENTS.md`, `run.sh`, `main.rs`, or `lib.rs`.
-- Change the output format of the backtest. The scoring is the ground truth.
-
 ## Scoring
 
 The backtest outputs a structured summary. The primary optimization target is
-`composite_score` — higher is better.
+`score` — higher is better.
 
 ```
 ---
-score:              2.724
-sharpe:             2.724
-total_return_pct:   42.600
-max_drawdown_pct:   7.600
-num_trades:         9081
-win_rate_pct:       58.300
-profit_factor:      1.450
-annual_turnover:    155.9
+score:              1.851
+sharpe:             1.851
+total_return_pct:   4.328
+max_drawdown_pct:   1.577
+num_trades:         309
+win_rate_pct:       71.845
+profit_factor:      1.661
+annual_turnover:    33.9
 ---
 ```
 
@@ -109,7 +93,7 @@ score = sharpe * sqrt(trade_count_factor) - drawdown_penalty - turnover_penalty
 
 trade_count_factor = min(num_trades / 50, 1.0)
 drawdown_penalty   = max(0, max_drawdown_pct - 15) * 0.05
-turnover_penalty   = max(0, annual_turnover/capital - 500) * 0.001
+turnover_penalty   = max(0, annual_turnover - 500) * 0.001
 
 Hard cutoffs: <10 trades -> -999, >50% drawdown -> -999, lost >50% -> -999
 ```
@@ -120,7 +104,10 @@ annualized with sqrt(bars_per_year). For 1h data, bars_per_year = 8760.
 **Backtest parameters:** capital $100K, position size 8%, fee 5bps, slippage 1bps.
 These are fixed in .env — do NOT change them.
 
-**The goal: maximize score. Higher is better. Current baseline: -4.170.**
+**Multi-asset:** The backtest runs on BTC, ETH, and SOL in parallel (capital split
+equally). Each asset has independent strategy state.
+
+**Current baseline score: +1.851** (score on BTC/ETH/SOL 1h data)
 
 ## Output Extraction
 
@@ -134,18 +121,13 @@ If grep returns empty, the run crashed. Run `tail -n 50 run.log` to see the erro
 
 ## Simplicity Criterion
 
-All else being equal, simpler is better.
+All else being equal, simpler is better. Nunchi's biggest finding: the biggest gains
+came from REMOVING features, not adding them. Nine features were built and
+subsequently removed — every removal improved performance.
 
-- A small improvement that adds ugly complexity is NOT worth it.
-- Removing a feature and getting equal or better results IS worth it — that's a
-  simplification win.
-- A 0.01 composite_score improvement that adds 50 lines of convoluted logic? Skip.
-- A 0.01 composite_score improvement from DELETING code? Definitely keep.
 - Equal score but simpler code? Keep.
-
-Nunchi's key finding: the biggest gains came from REMOVING features, not adding them.
-Nine features were built and subsequently removed — every removal improved performance.
-Keep this in mind.
+- Small improvement from deleting code? Definitely keep.
+- Small improvement that adds ugly complexity? Skip.
 
 ## Logging Results
 
@@ -154,25 +136,15 @@ When an experiment finishes, append a row to `experiments/results.tsv`.
 The TSV has a header row and 6 columns (tab-separated, NOT commas):
 
 ```
-commit	composite	sharpe	max_dd	status	description
+commit	score	sharpe	max_dd	status	description
 ```
 
 1. git commit hash (short, 7 chars)
-2. composite_score (e.g. 8.500) — use 0.000 for crashes
-3. sharpe_ratio (e.g. 2.710) — use 0.000 for crashes
+2. score (e.g. 2.500) — use 0.000 for crashes
+3. sharpe (e.g. 2.500) — use 0.000 for crashes
 4. max_drawdown_pct (e.g. 7.600) — use 0.000 for crashes
 5. status: `keep`, `discard`, or `crash`
 6. short text description of what this experiment tried
-
-Example:
-
-```
-commit	composite	sharpe	max_dd	status	description
-a1b2c3d	8.500	2.710	7.600	keep	baseline
-b2c3d4e	9.120	3.450	5.200	keep	RSI lookback 14 -> 8
-c3d4e5f	7.800	2.500	9.100	discard	added pyramiding
-d4e5f6g	0.000	0.000	0.000	crash	OOM on signal matrix
-```
 
 Do NOT git-commit `experiments/results.tsv`. Leave it untracked.
 
@@ -185,8 +157,8 @@ LOOP FOREVER:
 1. **Review state**: Read the current strategy code and recent experiment history.
    Look at what worked and what didn't. Think about what to try next.
 2. **Form hypothesis**: Decide on ONE change to test. Write it down mentally.
-   Good ideas: adjust a parameter, remove a feature, simplify a condition, change
-   an indicator period, modify entry/exit thresholds. One change at a time.
+   Good ideas: adjust a parameter, toggle a feature, modify entry/exit thresholds.
+   One change at a time.
 3. **Implement**: Edit `src/strategy/baseline.rs` with the change.
 4. **Commit**: `git add -A && git commit -m "experiment: <brief description>"`
 5. **Build**: `cargo build --release 2>&1 | tail -n 20`. If it fails, fix and retry.
@@ -201,61 +173,85 @@ LOOP FOREVER:
 9. **Log**: Append result to `experiments/results.tsv`.
 10. **Repeat from step 1.**
 
-## Timeout
+## Strategy Architecture
 
-Each backtest should complete in seconds (Rust is fast). If a run exceeds 60 seconds,
-kill it (`kill` the process) and treat it as a crash.
+The strategy has feature toggles for Nunchi's six mechanisms. Currently:
 
-## Crashes
+```
+4 ACTIVE signals:    momentum (12h/6h), EMA crossover, RSI
+6 TOGGLEABLE mechanisms: USE_DYNAMIC_THRESHOLD, USE_MACD, USE_BB,
+                         USE_ATR_STOP, USE_COOLDOWN, USE_SIGNAL_FLIP
+```
 
-Use your judgment:
-- Typo or missing import → fix and re-run.
-- Strategy logic produces NaN/infinity → fix the math and re-run.
-- Fundamentally broken idea → revert, log `crash`, move on.
+Each toggle is a `const bool` that enables a mechanism. When false, the behavior
+is exactly the proven +1.851 baseline.
 
-Don't spend more than 2 attempts fixing a single crash. If it doesn't work, skip it.
+## What Nunchi Discovered (103 experiments)
 
-## Strategy Ideas to Explore
+These are the key findings from Nunchi's successful run that achieved Sharpe 21.4.
+Their data was different (BTC/ETH/SOL from Hyperliquid, Jul 2024 - Mar 2025), so
+parameters won't transfer directly, but the structural insights are valuable:
 
-These are starting points, not an exhaustive list. Use your judgment and build on
-what the data tells you.
+1. **RSI period 8** was their biggest single improvement (+5.0 Sharpe)
+2. **Removing features** was their most consistent improvement source
+3. **ATR trailing stop at 5.5x** (wide) outperformed tight stops
+4. **Cooldown of 2 bars** prevented whipsaw re-entries
+5. **Dynamic vol-adjusted momentum threshold** adapted to regime changes
+6. **BB width percentile < 90** as quality filter for entries
+7. **Position size 0.08** (8%) eliminated turnover penalty
+8. **Signal flip on opposing consensus** for faster position reversal
 
-**Parameter tuning:**
-- RSI period (default 14 — try 6, 8, 10, 12, 20)
-- EMA periods (fast/slow crossover)
-- ATR multiplier for stops
-- Entry/exit thresholds
-- Minimum signal agreement count
+## Strategy Ideas to Explore (Prioritized)
 
-**Feature additions (test carefully — they often hurt):**
-- Bollinger Band squeeze detection
-- Volume confirmation
-- MACD divergence
-- Multi-timeframe analysis
-- Volatility regime detection
+**TIER 1 — Toggle experiments (fastest, safest):**
+- Turn on USE_MACD (adds 5th signal). May need to raise VOTE_THRESHOLD.
+- Turn on USE_BB (adds 6th signal). May need to raise VOTE_THRESHOLD.
+- Turn on USE_ATR_STOP. Try ATR_STOP_MULT values: 4.0, 5.5, 7.0, 10.0.
+- Turn on USE_COOLDOWN. Try COOLDOWN_BARS: 1, 2, 3.
+- Turn on USE_SIGNAL_FLIP.
+- Turn on USE_DYNAMIC_THRESHOLD.
+- Combine: enable multiple toggles together.
 
-**Feature removals (often the biggest wins):**
-- Remove strength scaling
-- Remove pyramiding
-- Remove correlation filters
-- Remove any feature that "never triggers"
-- Simplify position sizing to fixed fraction
+**TIER 2 — Parameter tuning:**
+- RSI period: 6, 8, 10, 12, 14, 20
+- RSI exit levels: 69/31, 70/30, 75/25, 80/20, 85/15
+- EMA periods: (5/21), (7/26), (9/21), (3/15)
+- Momentum lookback: (6/3), (12/6), (24/12), (48/24)
+- Vote threshold: 2, 3, 4
 
-**Structural changes (HIGH PRIORITY — parameter tuning has plateaued):**
-- Completely replace the signal logic (e.g. pure mean-reversion instead of momentum)
-- Adaptive position sizing based on realized volatility (inverse vol sizing)
-- Dynamic threshold: adjust entry sensitivity by recent vol regime
-- Add a cooldown period between trades to reduce churn and fees
-- Time-weighted signals: give more weight to recent bars
-- Asymmetric long/short parameters (crypto trends up differently than down)
-- Use candle patterns (e.g. engulfing, doji) as additional signals
-- Replace EMA crossover with KAMA (Kaufman Adaptive Moving Average)
-- Hull Moving Average instead of EMA for less lag
-- Use ATR-normalized momentum (return / ATR) instead of raw return
-- Require momentum to exceed a dynamic threshold (not just > 0)
-- Add a trend strength filter: only trade when ADX > threshold
-- Regime detection: bull/bear/sideways → different strategy per regime
-- Combine signals with weighted scoring instead of equal voting
+**TIER 3 — Structural changes:**
+- Replace binary momentum with Z-score momentum (return / rolling_std)
+- Adaptive RSI exits (tighter when profitable, wider when losing)
+- Asymmetric long/short parameters (crypto trends differently up vs down)
+- Hull Moving Average or KAMA instead of EMA
+- Add volume confirmation to signals
+- Regime detection: different strategy for high-vol vs low-vol
+- Time-of-day filter (crypto has intraday patterns)
+- Use candle body/wick ratios as additional signals
+- Try pure mean-reversion approach (buy oversold, sell overbought)
+- Long-only mode (remove shorts)
+- Short-only mode (test if shorts help or hurt)
+
+**TIER 4 — Multi-asset exploration:**
+- Asset-specific parameters (different RSI for BTC vs ETH vs SOL)
+- Correlation filter (reduce position when assets are highly correlated)
+- BTC as leading indicator for altcoin entries
+
+## Previous Experiment Results
+
+Our prior 40 experiments found:
+- Score went from -4.170 → +2.033 (ETH only), +1.851 (3 assets)
+- RSI 14 is better than 8 on our data (opposite of Nunchi!)
+- Vote threshold 3 beats 4 (with 4 signals)
+- RSI exits at 80/20 beat 69/31
+- EMA(5/21) marginally better than (9/21)
+- Removing MACD/BB helped slightly with 4-signal setup
+- ATR stop at 3x was too tight — try wider (5.5x, 7x)
+- Cooldown at 6 bars was too long — try shorter (1-2)
+- Many structural changes tried and discarded (see experiments/results.tsv)
+
+**Key insight:** With all 6 Nunchi mechanisms force-enabled (exact port), score was
+-4.478. The mechanisms need to be enabled ONE AT A TIME and tuned for our data.
 
 ## NEVER STOP
 
