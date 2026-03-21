@@ -288,12 +288,7 @@ impl Strategy for BaselineStrategy {
             bearish += 1;
         }
 
-        // 5. MACD
-        if macd_line > macd_signal_val {
-            bullish += 1;
-        } else if macd_line < macd_signal_val {
-            bearish += 1;
-        }
+        // 5. MACD — REMOVED (simplification experiment)
 
         // 6. BB Compress — REMOVED (simplification experiment)
         // let squeezed = self.is_squeezed(bb_width);
