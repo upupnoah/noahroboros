@@ -99,7 +99,7 @@ init_results() {
     fi
 }
 
-DATA_DIR="${DATA_DIR:-data/1m}"
+DATA_DIR="${DATA_DIR:-data/1h}"
 
 PROMPT_TEMPLATE='Read AGENTS.md for full context. You are in the middle of an autoresearch experiment loop on branch %s.
 
@@ -111,8 +111,8 @@ Run the NEXT experiment:
 3. git add -A && git commit -m "experiment: <description>"
 4. cargo build --release 2>&1 | tail -n 20
 5. cargo run --release -- backtest -d %s > run.log 2>&1
-6. grep "^composite_score:\|^sharpe_ratio:\|^max_drawdown_pct:" run.log
-7. If improved: keep. If worse: git reset --hard HEAD~1. Log to experiments/results.tsv.
+6. grep "^score:\|^sharpe:\|^max_drawdown_pct:" run.log
+7. If score improved (higher): keep. If worse: git reset --hard HEAD~1. Log to experiments/results.tsv.
 
 Do exactly ONE experiment, then stop.'
 

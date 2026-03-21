@@ -25,7 +25,7 @@ To set up a new experiment run, work with the user to:
 6. **Establish baseline**: Run the backtest with the unmodified strategy.
    Use the data directory specified by the human (default `data/1m`):
    ```
-   cargo run --release -- backtest -d data/1m > run.log 2>&1
+   cargo run --release -- backtest -d data/1h > run.log 2>&1
    ```
    Record the baseline score in `experiments/results.tsv`.
 7. **Initialize results.tsv**: If it doesn't exist, create it with the header row only.
@@ -91,39 +91,43 @@ The backtest outputs a structured summary. The primary optimization target is
 
 ```
 ---
-composite_score:  8.500
-sharpe_ratio:     2.710
-max_drawdown_pct: 7.600
-total_return_pct: 45.200
-num_trades:       127
-win_rate_pct:     58.300
-avg_trade_pct:    0.356
-turnover:         0.450
+score:              2.724
+sharpe:             2.724
+total_return_pct:   42.600
+max_drawdown_pct:   7.600
+num_trades:         9081
+win_rate_pct:       58.300
+profit_factor:      1.450
+annual_turnover:    155.9
 ---
 ```
 
-**Composite score formula:**
+**Scoring formula (Nunchi-style):**
 
 ```
-composite = sharpe * 0.4
-          + (1.0 - max_drawdown_pct / 100.0) * 0.3
-          + tanh(total_return_pct / 100.0) * 0.2
-          + (1.0 - turnover) * 0.1
+score = sharpe * sqrt(trade_count_factor) - drawdown_penalty - turnover_penalty
+
+trade_count_factor = min(num_trades / 50, 1.0)
+drawdown_penalty   = max(0, max_drawdown_pct - 15) * 0.05
+turnover_penalty   = max(0, annual_turnover/capital - 500) * 0.001
+
+Hard cutoffs: <10 trades -> -999, >50% drawdown -> -999, lost >50% -> -999
 ```
 
-The metric penalizes:
-- High drawdown (risk)
-- High turnover (over-trading)
-- Uses tanh on returns to diminish marginal value of extreme returns
+Sharpe is computed from **per-bar equity returns** (mark-to-market each candle),
+annualized with sqrt(bars_per_year). For 1h data, bars_per_year = 8760.
 
-**The goal: maximize composite_score.**
+**Backtest parameters:** capital $100K, position size 8%, fee 5bps, slippage 1bps.
+These are fixed in .env — do NOT change them.
+
+**The goal: maximize score. Higher is better. Current baseline: -4.170.**
 
 ## Output Extraction
 
 After each run, extract the key metrics:
 
 ```
-grep "^composite_score:\|^sharpe_ratio:\|^max_drawdown_pct:" run.log
+grep "^score:\|^sharpe:\|^max_drawdown_pct:" run.log
 ```
 
 If grep returns empty, the run crashed. Run `tail -n 50 run.log` to see the error.
@@ -187,11 +191,11 @@ LOOP FOREVER:
 4. **Commit**: `git add -A && git commit -m "experiment: <brief description>"`
 5. **Build**: `cargo build --release 2>&1 | tail -n 20`. If it fails, fix and retry.
    If you can't fix after 2 attempts, revert and move on.
-6. **Run backtest**: `cargo run --release -- backtest -d data/1m > run.log 2>&1`
-7. **Read results**: `grep "^composite_score:\|^sharpe_ratio:\|^max_drawdown_pct:" run.log`
+6. **Run backtest**: `cargo run --release -- backtest -d data/1h > run.log 2>&1`
+7. **Read results**: `grep "^score:\|^sharpe:\|^max_drawdown_pct:" run.log`
 8. **Evaluate**:
-   - If composite_score IMPROVED → keep the commit. Log status `keep`.
-   - If composite_score is EQUAL or WORSE → revert: `git reset --hard HEAD~1`. Log status `discard`.
+   - If score IMPROVED (higher) → keep the commit. Log status `keep`.
+   - If score is EQUAL or WORSE → revert: `git reset --hard HEAD~1`. Log status `discard`.
    - If the run CRASHED → check `tail -n 50 run.log`. If it's a trivial fix, fix and
      re-run. If fundamental, revert and log status `crash`.
 9. **Log**: Append result to `experiments/results.tsv`.
