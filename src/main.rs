@@ -4,7 +4,7 @@ use clap::{Parser, Subcommand};
 
 use noahroboros::backtest::BacktestEngine;
 use noahroboros::config::Config;
-use noahroboros::market::download::Downloader;
+use noahroboros::market::download::{Downloader, Market};
 use noahroboros::market::CsvLoader;
 use noahroboros::strategy::baseline::BaselineStrategy;
 
@@ -19,39 +19,33 @@ struct Cli {
 enum Commands {
     /// Download historical OHLCV data from Binance
     Download {
-        /// Symbols to download, comma-separated (overrides DOWNLOAD_SYMBOLS env)
         #[arg(short, long, value_delimiter = ',')]
         symbols: Option<Vec<String>>,
 
-        /// Candle interval: 1m, 5m, 15m, 1h, 4h, 1d (overrides DOWNLOAD_INTERVAL env)
         #[arg(short, long)]
         interval: Option<String>,
 
-        /// How many months of history to fetch (overrides DOWNLOAD_MONTHS env).
-        /// Ignored if --start is provided.
+        #[arg(long)]
+        market: Option<String>,
+
         #[arg(short, long)]
         months: Option<u32>,
 
-        /// Start date, e.g. 2025-09-01. Overrides --months.
         #[arg(long)]
         start: Option<String>,
 
-        /// End date, e.g. 2026-03-01 (exclusive). Defaults to now.
         #[arg(long)]
         end: Option<String>,
 
-        /// Output directory (overrides DATA_DIR env)
         #[arg(short, long)]
         output: Option<String>,
     },
 
     /// Run backtest on historical data
     Backtest {
-        /// Path to data directory (overrides DATA_DIR env)
         #[arg(short, long)]
         data_dir: Option<String>,
 
-        /// Initial capital in USD (overrides INITIAL_CAPITAL env)
         #[arg(short, long)]
         capital: Option<f64>,
     },
@@ -66,6 +60,7 @@ fn main() -> Result<()> {
         Commands::Download {
             symbols,
             interval,
+            market,
             months,
             start,
             end,
@@ -73,6 +68,8 @@ fn main() -> Result<()> {
         } => {
             let symbols = symbols.unwrap_or(cfg.download.symbols);
             let interval = interval.unwrap_or(cfg.download.interval);
+            let market_str = market.unwrap_or(cfg.download.market);
+            let market = Market::from_str(&market_str)?;
             let out_dir = output.unwrap_or(cfg.data_dir);
 
             let end_ms = match end {
@@ -91,9 +88,9 @@ fn main() -> Result<()> {
             let start_str = start.as_deref().unwrap_or("(auto)");
             let end_str = end.as_deref().unwrap_or("now");
 
-            let downloader = Downloader::new(&cfg.binance.base_url);
+            let downloader = Downloader::new(market);
 
-            println!("Downloading {interval} candles: {start_str} -> {end_str}");
+            println!("Downloading {interval} {market} candles: {start_str} -> {end_str}");
             println!("Symbols: {}", symbols.join(", "));
             println!("Output:  {out_dir}/{interval}/");
             println!();
@@ -101,14 +98,15 @@ fn main() -> Result<()> {
             for symbol in &symbols {
                 print!("{symbol}... ");
                 std::io::Write::flush(&mut std::io::stdout())?;
-
                 match downloader.download(symbol, &interval, start_ms, end_ms, &out_dir) {
                     Ok(count) => println!("{count} candles"),
                     Err(e) => println!("FAILED: {e}"),
                 }
             }
 
-            println!("\nDone. Run `cargo run --release -- backtest -d {out_dir}/{interval}` to test.");
+            println!(
+                "\nDone. Run `cargo run --release -- backtest -d {out_dir}/{interval}` to test."
+            );
         }
 
         Commands::Backtest { data_dir, capital } => {
@@ -122,20 +120,30 @@ fn main() -> Result<()> {
                 );
             }
 
+            eprintln!(
+                "Backtesting {} candles, capital=${}, position={}%, fee={}bps, slip={}bps",
+                candles.len(),
+                capital,
+                cfg.position_size_frac * 100.0,
+                cfg.fee_bps,
+                cfg.slippage_bps,
+            );
+
             let mut strategy = BaselineStrategy::new();
-            let mut engine = BacktestEngine::new(capital, cfg.position_size_frac);
-            let results = engine.run_with(&mut strategy, &candles);
-            let scores = noahroboros::scoring::score(&results, capital, &cfg.scoring);
+            let mut engine =
+                BacktestEngine::new(capital, cfg.position_size_frac, cfg.fee_bps, cfg.slippage_bps);
+            let output = engine.run_with(&mut strategy, &candles);
+            let scores = noahroboros::scoring::score(&output, capital, &cfg.scoring);
 
             println!("---");
-            println!("composite_score:  {:.3}", scores.composite);
-            println!("sharpe_ratio:     {:.3}", scores.sharpe);
-            println!("max_drawdown_pct: {:.3}", scores.max_drawdown_pct);
-            println!("total_return_pct: {:.3}", scores.total_return_pct);
-            println!("num_trades:       {}", scores.num_trades);
-            println!("win_rate_pct:     {:.3}", scores.win_rate_pct);
-            println!("avg_trade_pct:    {:.3}", scores.avg_trade_pct);
-            println!("turnover:         {:.3}", scores.turnover);
+            println!("score:              {:.3}", scores.score);
+            println!("sharpe:             {:.3}", scores.sharpe);
+            println!("total_return_pct:   {:.3}", scores.total_return_pct);
+            println!("max_drawdown_pct:   {:.3}", scores.max_drawdown_pct);
+            println!("num_trades:         {}", scores.num_trades);
+            println!("win_rate_pct:       {:.3}", scores.win_rate_pct);
+            println!("profit_factor:      {:.3}", scores.profit_factor);
+            println!("annual_turnover:    {:.1}", scores.annual_turnover);
             println!("---");
         }
     }

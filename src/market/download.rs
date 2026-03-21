@@ -1,31 +1,59 @@
 use anyhow::{Context, Result};
 use serde::Deserialize;
+use std::fmt;
 use std::io::Write;
 use std::path::Path;
 
 const KLINE_LIMIT: u32 = 1000;
 
-/// Raw kline response from Binance. Each kline is an array of mixed types,
-/// so we deserialize as a Vec of serde_json::Value then extract fields.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Market {
+    Spot,
+    Futures,
+}
+
+impl Market {
+    pub fn from_str(s: &str) -> Result<Self> {
+        match s.to_lowercase().as_str() {
+            "spot" => Ok(Market::Spot),
+            "futures" | "perp" | "perpetual" | "usdt-m" => Ok(Market::Futures),
+            _ => anyhow::bail!("Unknown market type: {s}. Use 'spot' or 'futures'"),
+        }
+    }
+
+    fn kline_url(&self) -> &str {
+        match self {
+            Market::Spot => "https://api.binance.com/api/v3/klines",
+            Market::Futures => "https://fapi.binance.com/fapi/v1/klines",
+        }
+    }
+}
+
+impl fmt::Display for Market {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Market::Spot => write!(f, "spot"),
+            Market::Futures => write!(f, "futures"),
+        }
+    }
+}
+
 #[derive(Debug, Deserialize)]
 struct RawKline(Vec<serde_json::Value>);
 
 pub struct Downloader {
-    base_url: String,
+    kline_url: String,
     client: reqwest::blocking::Client,
 }
 
 impl Downloader {
-    pub fn new(base_url: &str) -> Self {
+    pub fn new(market: Market) -> Self {
         Self {
-            base_url: base_url.trim_end_matches('/').to_string(),
+            kline_url: market.kline_url().to_string(),
             client: reqwest::blocking::Client::new(),
         }
     }
 
-    /// Download historical klines for a symbol and write to CSV.
-    /// `interval`: e.g. "1h", "4h", "1d"
-    /// `start_ms` / `end_ms`: Unix timestamps in milliseconds
     pub fn download(
         &self,
         symbol: &str,
@@ -52,8 +80,8 @@ impl Downloader {
             }
 
             let url = format!(
-                "{}/api/v3/klines?symbol={}&interval={}&startTime={}&endTime={}&limit={}",
-                self.base_url, symbol, interval, current_start, end_ms, KLINE_LIMIT
+                "{}?symbol={}&interval={}&startTime={}&endTime={}&limit={}",
+                self.kline_url, symbol, interval, current_start, end_ms, KLINE_LIMIT
             );
 
             let resp: Vec<RawKline> = self
@@ -73,8 +101,7 @@ impl Downloader {
                 if vals.len() < 6 {
                     continue;
                 }
-                // [0]=open_time, [1]=open, [2]=high, [3]=low, [4]=close, [5]=volume
-                let ts = vals[0].as_i64().unwrap_or(0) / 1000; // ms -> seconds
+                let ts = vals[0].as_i64().unwrap_or(0) / 1000;
                 let open = val_as_f64(&vals[1]);
                 let high = val_as_f64(&vals[2]);
                 let low = val_as_f64(&vals[3]);
@@ -85,11 +112,9 @@ impl Downloader {
                 total_rows += 1;
             }
 
-            // Advance past the last kline's open_time
             let last_ts = resp.last().unwrap().0[0].as_i64().unwrap_or(end_ms);
             current_start = last_ts + 1;
 
-            // Binance rate limit: be nice
             if resp.len() == KLINE_LIMIT as usize {
                 std::thread::sleep(std::time::Duration::from_millis(100));
             }
