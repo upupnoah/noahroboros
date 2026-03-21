@@ -27,7 +27,7 @@ const MOM_LONG_BARS: usize = 12;
 const MOM_SHORT_BARS: usize = 6;
 
 // EMA crossover
-const EMA_FAST_PERIOD: usize = 9;
+const EMA_FAST_PERIOD: usize = 5;
 const EMA_SLOW_PERIOD: usize = 21;
 
 // RSI
