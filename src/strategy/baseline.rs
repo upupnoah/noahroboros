@@ -295,17 +295,11 @@ impl Strategy for BaselineStrategy {
             bearish += 1;
         }
 
-        // 6. BB Compress — squeeze active + direction from price vs middle band
-        let squeezed = self.is_squeezed(bb_width);
-        if squeezed && bb_mid > 0.0 {
-            if close > bb_mid {
-                bullish += 1;
-            } else if close < bb_mid {
-                bearish += 1;
-            }
-        }
+        // 6. BB Compress — REMOVED (simplification experiment)
+        // let squeezed = self.is_squeezed(bb_width);
+        // if squeezed && bb_mid > 0.0 { ... }
 
-        // Vote
+        // Vote (now 5 signals, threshold still 4 = stricter filter)
         if bullish >= VOTE_THRESHOLD {
             self.position = 1;
             self.trailing_stop = Some(close - atr * ATR_STOP_MULT);
