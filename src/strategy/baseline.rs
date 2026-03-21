@@ -22,7 +22,7 @@ const MOM_SHORT_BARS: usize = 6;
 const EMA_FAST_PERIOD: usize = 5;
 const EMA_SLOW_PERIOD: usize = 21;
 
-const RSI_PERIOD: usize = 24;
+const RSI_PERIOD: usize = 30;
 const RSI_EXIT_LONG: f64 = 80.0;
 const RSI_EXIT_SHORT: f64 = 20.0;
 
