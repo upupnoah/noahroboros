@@ -32,8 +32,8 @@ const EMA_SLOW_PERIOD: usize = 21;
 
 // RSI
 const RSI_PERIOD: usize = 8;
-const RSI_EXIT_LONG: f64 = 69.0;
-const RSI_EXIT_SHORT: f64 = 31.0;
+const RSI_EXIT_LONG: f64 = 80.0;
+const RSI_EXIT_SHORT: f64 = 20.0;
 
 // MACD (built from EMAs)
 const MACD_FAST: usize = 12;
