@@ -26,7 +26,7 @@ const RSI_PERIOD: usize = 30;
 const RSI_EXIT_LONG: f64 = 80.0;
 const RSI_EXIT_SHORT: f64 = 20.0;
 
-const VOTE_THRESHOLD: usize = 2;
+const VOTE_THRESHOLD: usize = 1;
 
 const WARMUP_BARS: usize = 120;
 
@@ -292,14 +292,9 @@ impl Strategy for BaselineStrategy {
 
         // Momentum signals disabled — simplified to EMA + RSI only
 
-        // 1. EMA Crossover
-        if ema_fast_val > ema_slow_val {
-            bull_votes += 1;
-        } else if ema_fast_val < ema_slow_val {
-            bear_votes += 1;
-        }
+        // EMA Crossover disabled — testing pure RSI
 
-        // 4. RSI above/below 50
+        // 1. RSI above/below 50
         if rsi_val > 50.0 {
             bull_votes += 1;
         } else if rsi_val < 50.0 {
