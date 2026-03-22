@@ -1,0 +1,43 @@
+commit	score	sharpe	max_dd	status	description
+NEW	1.851	1.851	1.577	keep	hybrid v3 baseline (4 signals, 6 toggleable mechanisms, BTC/ETH/SOL 1h)
+a8fd35b	-0.399	-0.399	3.431	discard	enable ATR trailing stop (5.5x) — too many exits
+c97feaa	-0.153	-0.153	1.790	discard	enable cooldown 2 bars — filters valid re-entries
+d00b707	1.851	1.851	1.576	discard	enable MACD (5th signal) — equal score, MACD redundant with existing signals
+d7abb14	1.851	1.851	1.577	discard	enable BB compression (6th signal) — equal score, adds to both sides equally
+69bafa1	-3.273	-3.273	8.155	discard	enable signal flip — 1832 trades, 34% WR, too much churn
+73cfa0b	0.303	0.303	1.043	discard	enable dynamic threshold — filters too aggressively, lower return
+8dc4a9b	-0.151	-0.151	2.368	discard	RSI period 14->8 (Nunchi's best) — worse on our data, more trades but lower WR
+fbcba50	2.074	2.074	1.597	keep	RSI period 14->20 (slower RSI = better on 3 assets)
+975a5d9	2.076	2.076	1.607	keep	RSI period 20->24 (marginal improvement, fewer trades)
+1d0cc08	2.261	2.261	1.467	keep	RSI period 24->30 (big improvement, 72 trades, lower DD)
+033c7d2	1.973	2.428	1.465	discard	RSI 30->40 — only 33 trades, trade_count_factor penalty
+0e2f254	2.261	2.261	1.467	discard	EMA 5/21->7/26 — equal score
+1ff87aa	2.261	2.261	1.467	discard	EMA 5/21->3/15 — equal score, EMA irrelevant with RSI 30
+a0922f3	2.261	2.261	1.467	discard	vote threshold 3->2 — equal score
+224106e	1.846	1.846	1.607	discard	RSI exits 80/20->75/25 — more trades but lower Sharpe
+efd28c4	1.611	2.548	1.521	discard	RSI exits 80/20->85/15 — only 20 trades, trade count penalty
+8cf6351	2.261	2.261	1.467	discard	momentum 12/6->24/12 — equal score
+cad24c6	-2.235	-2.499	6.312	discard	WARMUP 120->30 — indicators not converged, bad early signals
+4f4c533	-2.231	-2.494	6.320	discard	long-only — shorts contribute value, -4.9% return
+7622f46	2.261	2.261	1.467	keep	remove momentum signals, EMA+RSI only — simplification win, momentum redundant
+1e7da3b	2.261	2.261	1.467	keep	pure RSI only (remove EMA) — simplification win, pure RSI strategy
+4cfa9df	2.172	2.172	1.468	discard	RSI 30->28
+915d5ac	2.301	2.453	1.465	keep	RSI 30->35 (higher Sharpe, 44 trades)
+c50fd13	1.973	2.428	1.465	discard	RSI 35->40 — only 33 trades, too few
+c9f6a63	2.316	2.316	1.465	keep	RSI 35->32 (better balance: 63 trades, higher score)
+76d40e9	2.147	2.147	1.641	discard	RSI exits 78/22 — more trades but lower Sharpe
+2d9cb3d	2.159	2.444	1.470	discard	RSI exits 82/18 — only 39 trades
+dbdafaf	2.292	2.292	1.467	discard	RSI entry 55/45 — marginally worse
+76d24f6	2.214	2.214	1.471	discard	RSI momentum (above 50 AND rising) — too restrictive
+46ea38a	-0.957	-1.641	3.649	discard	mean-reversion RSI (buy <30, sell >70) — wrong regime, only 17 trades
+b412ea9	-2.065	-2.542	6.270	discard	WARMUP 120->60 — RSI(32) needs more warmup
+a728084	2.316	2.316	1.465	discard	add EMA back (threshold 2) — equal score, RSI dominates
+685ff7d	2.259	2.259	1.465	discard	RSI 33 — marginally worse than 32
+9987f61	2.239	2.239	1.467	discard	RSI 31 — worse than 32
+60a78cb	-1.447	-1.447	4.470	discard	time-based exit 120 bars — cuts winners short
+4771b4f	1.851	1.851	1.576	discard	dual RSI (slow entry, fast exit) — fast exits cut winners
+6434bf0	0.323	0.375	1.269	discard	pure EMA(50/200) crossover — low Sharpe, 37 trades
+faa18ab	2.159	2.444	1.470	discard	asymmetric exits 77/18 — 39 trades
+d5ec17e	2.418	2.418	1.706	keep	add 4% profit target exit (locks gains, more trades)
+2c7c968	2.483	2.483	1.736	keep	widen RSI exits to 85/15 with 4% PT
+da04f68	2.569	2.569	1.735	keep	add RSI reversal exit at 77/23 (catches momentum shifts)
