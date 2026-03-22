@@ -77,6 +77,7 @@ pub struct BaselineStrategy {
     macd_slow_ema: ExponentialMovingAverage,
     macd_signal_ema: ExponentialMovingAverage,
 
+    prev_rsi: f64,
     position: i8,
     entry_price: f64,
     peak_price: f64,
@@ -102,6 +103,7 @@ impl BaselineStrategy {
             macd_slow_ema: ExponentialMovingAverage::new(MACD_SLOW).unwrap(),
             macd_signal_ema: ExponentialMovingAverage::new(MACD_SIGNAL).unwrap(),
 
+            prev_rsi: 50.0,
             position: 0,
             entry_price: 0.0,
             peak_price: 0.0,
@@ -234,6 +236,7 @@ impl Strategy for BaselineStrategy {
 
         self.count += 1;
         self.bars_since_exit += 1;
+        // defer prev_rsi update to after exit logic
 
         if self.count <= WARMUP_BARS {
             return Signal::Hold;
@@ -286,15 +289,33 @@ impl Strategy for BaselineStrategy {
                 return Signal::Flat;
             }
 
-            // RSI mean-reversion exit (always active)
+            // RSI reversal exit: exit when RSI was above threshold and drops back
+            const RSI_REV_HIGH: f64 = 77.0;
+            const RSI_REV_LOW: f64 = 23.0;
+            if self.position == 1 && self.prev_rsi >= RSI_REV_HIGH && rsi_val < RSI_REV_HIGH {
+                self.position = 0;
+                self.bars_since_exit = 0;
+                self.prev_rsi = rsi_val;
+                return Signal::Flat;
+            }
+            if self.position == -1 && self.prev_rsi <= RSI_REV_LOW && rsi_val > RSI_REV_LOW {
+                self.position = 0;
+                self.bars_since_exit = 0;
+                self.prev_rsi = rsi_val;
+                return Signal::Flat;
+            }
+
+            // RSI extreme exit
             if self.position == 1 && rsi_val >= RSI_EXIT_LONG {
                 self.position = 0;
                 self.bars_since_exit = 0;
+                self.prev_rsi = rsi_val;
                 return Signal::Flat;
             }
             if self.position == -1 && rsi_val <= RSI_EXIT_SHORT {
                 self.position = 0;
                 self.bars_since_exit = 0;
+                self.prev_rsi = rsi_val;
                 return Signal::Flat;
             }
         }
@@ -381,6 +402,7 @@ impl Strategy for BaselineStrategy {
             return Signal::Short;
         }
 
+        self.prev_rsi = rsi_val;
         Signal::Hold
     }
 
