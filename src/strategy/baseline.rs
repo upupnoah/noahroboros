@@ -2,7 +2,8 @@ use std::collections::VecDeque;
 
 use crate::market::Candle;
 use crate::strategy::{Signal, Strategy};
-use ta::indicators::{ExponentialMovingAverage, RelativeStrengthIndex};
+use fin_primitives::signals::float::RsiF64;
+use ta::indicators::ExponentialMovingAverage;
 use ta::Next;
 
 /// Hybrid strategy: proven +2.033 baseline + Nunchi mechanisms as opt-in toggles.
@@ -71,7 +72,7 @@ pub struct BaselineStrategy {
     ema_fast: ExponentialMovingAverage,
     ema_slow: ExponentialMovingAverage,
 
-    rsi: RelativeStrengthIndex,
+    rsi: RsiF64,
 
     macd_fast_ema: ExponentialMovingAverage,
     macd_slow_ema: ExponentialMovingAverage,
@@ -97,7 +98,7 @@ impl BaselineStrategy {
             ema_fast: ExponentialMovingAverage::new(EMA_FAST_PERIOD).unwrap(),
             ema_slow: ExponentialMovingAverage::new(EMA_SLOW_PERIOD).unwrap(),
 
-            rsi: RelativeStrengthIndex::new(RSI_PERIOD).unwrap(),
+            rsi: RsiF64::new(RSI_PERIOD).unwrap(),
 
             macd_fast_ema: ExponentialMovingAverage::new(MACD_FAST).unwrap(),
             macd_slow_ema: ExponentialMovingAverage::new(MACD_SLOW).unwrap(),
@@ -226,7 +227,7 @@ impl Strategy for BaselineStrategy {
 
         let ema_fast_val = self.ema_fast.next(close);
         let ema_slow_val = self.ema_slow.next(close);
-        let rsi_val = self.rsi.next(close);
+        let rsi_val = self.rsi.update(close).unwrap_or(50.0);
 
         let macd_fast_val = self.macd_fast_ema.next(close);
         let macd_slow_val = self.macd_slow_ema.next(close);
@@ -408,5 +409,23 @@ impl Strategy for BaselineStrategy {
 
     fn reset(&mut self) {
         *self = Self::new();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rsi_uses_wilder_smoothing() {
+        // Textbook Wilder RSI(14) sequence (TA-Lib RSI): the last value is 37.77.
+        let closes = [
+            44.34, 44.09, 44.15, 43.61, 44.33, 44.83, 45.10, 45.42, 45.84, 46.08, 45.89, 46.03,
+            45.61, 46.28, 46.28, 46.00, 46.03, 46.41, 46.22, 45.64, 46.21, 46.25, 45.71, 46.45,
+            45.78, 45.35, 44.03, 44.18, 44.22, 44.57, 43.42, 42.66, 43.13,
+        ];
+        let mut rsi = RsiF64::new(14).unwrap();
+        let last = closes.iter().filter_map(|c| rsi.update(*c)).last().unwrap();
+        assert!((last - 37.77).abs() < 0.05, "got {last}");
     }
 }
